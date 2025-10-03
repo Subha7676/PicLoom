@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PicLoom - Post Images & Text</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; }
+    input, textarea { width: 100%; margin: 8px 0; padding: 8px; }
+    button { padding: 10px 20px; cursor: pointer; }
+    #posts { margin-top: 30px; }
+    .post { border: 1px solid #ddd; padding: 10px; margin-bottom: 15px; }
+    .post img { max-width: 100%; height: auto; }
+  </style>
+</head>
+<body>
+
+  <h1>PicLoom</h1>
+  <p>Upload Image & Add Text</p>
+
+  <input type="file" id="imageInput" accept="image/*" />
+  <textarea id="textInput" placeholder="Write something..."></textarea>
+  <button onclick="uploadPost()">Post</button>
+
+  <div id="posts"></div>
+
+  <!-- Firebase Compat SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+[03/10, 9:23 pm] ChatGPT: <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    // Your Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAq8pComLVno82nfrh51hIfVDkoektno0Y",
+      authDomain: "picloom-3c84a.firebaseapp.com",
+      projectId: "picloom-3c84a",
+      storageBucket: "picloom-3c84a.appspot.com",
+      messagingSenderId: "1093119723225",
+      appId: "1:1093119723225:web:dc36a043760cf75a2f60c8",
+      measurementId: "G-NSPDB47N30"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const storage = firebase.storage();
+    const firestore = firebase.firestore();
+
+    // Upload post function
+    async function uploadPost() {
+      const imageInput = document.getElementById('imageInput');
+      const textInput = document.getElementById('textInput');
+      if (!imageInput.files[0]) {
+        alert('Please select an image!');
+        return;
+      }
+      const file = imageInput.files[0];
+      const text = textInput.value.trim();
+      if (!text) {
+        alert('Please enter some text!');
+        return;
+      }
+
+      // Upload image to Firebase Storage
+[03/10, 9:23 pm] ChatGPT: const storageRef = storage.ref('images/' + Date.now() + '_' + file.name);
+      const snapshot = await storageRef.put(file);
+      const imageUrl = await snapshot.ref.getDownloadURL();
+
+      // Save post data to Firestore
+      await firestore.collection('posts').add({
+        imageUrl: imageUrl,
+        text: text,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Clear inputs
+      imageInput.value = '';
+      textInput.value = '';
+
+      // Reload posts
+      loadPosts();
+    }
+
+    // Load posts and display
+    async function loadPosts() {
+      const postsDiv = document.getElementById('posts');
+      postsDiv.innerHTML = '';
+      const snapshot = await firestore.collection('posts').orderBy('timestamp', 'desc').get();
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const postEl = document.createElement('div');
+        postEl.className = 'post';
+        postEl.innerHTML = `
+          <img src="data.imageUrl" alt="post image" />
+          <p>{data.text}</p>
+        `;
+        postsDiv.appendChild(postEl);
+      });
+    }
+
+    loadPosts();
+  </script>
+
+</body>
+  </html>
