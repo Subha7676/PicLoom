@@ -1,106 +1,178 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PicLoom - Post Images & Text</title>
+  <title>PicLoom Advanced</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; }
-    input, textarea { width: 100%; margin: 8px 0; padding: 8px; }
-    button { padding: 10px 20px; cursor: pointer; }
-    #posts { margin-top: 30px; }
-    .post { border: 1px solid #ddd; padding: 10px; margin-bottom: 15px; }
-    .post img { max-width: 100%; height: auto; }
+    body { font-family: Arial, sans-serif; max-width: 700px; margin: auto; }
+    .profile { border: 1px solid #ddd; padding: 10px; margin-bottom: 20px; }
+    .post { border: 1px solid #ccc; padding: 10px; margin-bottom: 15px; }
+    button { padding: 8px 16px; cursor: pointer; margin-top: 10px; }
   </style>
 </head>
 <body>
+<!-- Scroll to Top Button -->
+<button onclick="scrollToTop()" id="topBtn" style="display:none;position:fixed;bottom:20px;right:20px;padding:10px;">⬆️ Top</button>
+
+<script>
+  // Show button when scrolling down
+  window.onscroll = function () {
+    const btn = document.getElementById("topBtn");
+    if (document.body.scrollTop > 200 || document.documentElement.scrollTop > 200) {
+      btn.style.display = "block";
+    } else {
+      btn.style.display = "none";
+    }
+  };
+
+  // Scroll to top function
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
 
   <h1>PicLoom</h1>
-  <p>Upload Image & Add Text</p>
+  <div id="profile"></div>
 
-  <input type="file" id="imageInput" accept="image/*" />
-  <textarea id="textInput" placeholder="Write something..."></textarea>
-  <button onclick="uploadPost()">Post</button>
+  <div id="postSection">
+    <input type="file" id="imageInput" accept="image/*">
+    <textarea id="textInput" placeholder="Write something..."></textarea><br>
+    <button onclick="uploadPost()">Post</button>
+  </div>
 
-  <div id="posts"></div>
+  <div id="feed"></div>
 
-  <!-- Firebase Compat SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-[03/10, 9:23 pm] ChatGPT: <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src("https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
   <script>
-    // Your Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAq8pComLVno82nfrh51hIfVDkoektno0Y",
       authDomain: "picloom-3c84a.firebaseapp.com",
       projectId: "picloom-3c84a",
       storageBucket: "picloom-3c84a.appspot.com",
-      messagingSenderId: "1093119723225",
+[03/10, 10:19 pm] ChatGPT: messagingSenderId: "1093119723225",
       appId: "1:1093119723225:web:dc36a043760cf75a2f60c8",
       measurementId: "G-NSPDB47N30"
     };
-
-    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
     const storage = firebase.storage();
-    const firestore = firebase.firestore();
 
-    // Upload post function
-    async function uploadPost() {
-      const imageInput = document.getElementById('imageInput');
-      const textInput = document.getElementById('textInput');
-      if (!imageInput.files[0]) {
-        alert('Please select an image!');
-        return;
+    let currentUserData = null;
+
+    auth.onAuthStateChanged(async user => {
+      if (user) {
+        document.getElementById('postSection').style.display = 'block';
+        const userDoc = await db.collection('users').doc(user.uid).get();
+        if (!userDoc.exists) {
+          const username = user.email.split('@')[0];
+          await db.collection('users').doc(user.uid).set({
+            username,
+            email: user.email,
+            followers: [],
+            following: []
+          });
+        }
+        currentUserData = (await db.collection('users').doc(user.uid).get()).data();
+        showProfile(user.uid);
+        loadFeed();
+      } else {
+        document.getElementById('postSection').style.display = 'none';
+        document.getElementById('feed').innerHTML = '';
       }
-      const file = imageInput.files[0];
-      const text = textInput.value.trim();
-      if (!text) {
-        alert('Please enter some text!');
-        return;
-      }
+    });
 
-      // Upload image to Firebase Storage
-[03/10, 9:23 pm] ChatGPT: const storageRef = storage.ref('images/' + Date.now() + '_' + file.name);
-      const snapshot = await storageRef.put(file);
-      const imageUrl = await snapshot.ref.getDownloadURL();
-
-      // Save post data to Firestore
-      await firestore.collection('posts').add({
-        imageUrl: imageUrl,
-        text: text,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      });
-
-      // Clear inputs
-      imageInput.value = '';
-      textInput.value = '';
-
-      // Reload posts
-      loadPosts();
+    async function showProfile(uid) {
+      const profileDiv = document.getElementById('profile');
+      const userDoc = await db.collection('users').doc(uid).get();
+const data = userDoc.data();
+      profileDiv.innerHTML = `
+        <div class="profile">
+          <h2>@data.username</h2>
+          <p>Followers:{data.followers.length}</p>
+          <p>Following: data.following.length</p>{ currentUserData && currentUserData.following.includes(uid) && uid !== auth.currentUser.uid
+             ? `<button onclick="unfollow('uid')">Unfollow</button>`
+             : uid !== auth.currentUser.uid
+             ? `<button onclick="follow('{uid}')">Follow</button>` : ""
+          }
+        </div>
+      `;
     }
 
-    // Load posts and display
-    async function loadPosts() {
-      const postsDiv = document.getElementById('posts');
-      postsDiv.innerHTML = '';
-      const snapshot = await firestore.collection('posts').orderBy('timestamp', 'desc').get();
+    async function follow(uid) {
+      const me = auth.currentUser.uid;
+      await db.collection('users').doc(me).update({
+        following: firebase.firestore.FieldValue.arrayUnion(uid)
+      });
+      await db.collection('users').doc(uid).update({
+        followers: firebase.firestore.FieldValue.arrayUnion(me)
+      });
+      showProfile(uid);
+      loadFeed();
+    }
+
+    async function unfollow(uid) {
+      const me = auth.currentUser.uid;
+      await db.collection('users').doc(me).update({
+        following: firebase.firestore.FieldValue.arrayRemove(uid)
+      });
+      await db.collection('users').doc(uid).update({
+        followers: firebase.firestore.FieldValue.arrayRemove(me)
+      });
+      showProfile(uid);
+      loadFeed();
+
+    async function uploadPost() {
+      const user = auth.currentUser;
+      if (!user) return alert("Login first");
+      const file = document.getElementById('imageInput').files[0];
+      const text = document.getElementById('textInput').value;
+
+      let imageUrl = "";
+      if (file) {
+        const ref = storage.ref(`posts/user.uid_{Date.now()}`);
+        const snap = await ref.put(file);
+        imageUrl = await snap.ref.getDownloadURL();
+      }
+
+      await db.collection('posts').add({
+        uid: user.uid,
+        text,
+        imageUrl,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      loadFeed();
+    }
+
+    async function loadFeed() {
+      const feedDiv = document.getElementById('feed');
+      feedDiv.innerHTML = '';
+      const me = auth.currentUser.uid;
+
+      // Only show posts from users you follow + your own
+      const following = currentUserData.following || [];
+      following.push(me);
+
+      const snapshot = await db.collection('posts')
+        .where('uid', 'in', following)
+        .orderBy('timestamp', 'desc')
+        .get();
 
       snapshot.forEach(doc => {
         const data = doc.data();
         const postEl = document.createElement('div');
         postEl.className = 'post';
         postEl.innerHTML = `
-          <img src="data.imageUrl" alt="post image" />
+[03/10, 10:19 pm] ChatGPT: <p><strong>@data.uid</strong></p>{data.imageUrl ? `<img src="data.imageUrl" alt="post image">` : ”
           <p>{data.text}</p>
         `;
-        postsDiv.appendChild(postEl);
+        feedDiv.appendChild(postEl);
       });
     }
-
-    loadPosts();
   </script>
-
 </body>
-  </html>
+</html>
